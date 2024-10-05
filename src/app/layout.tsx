@@ -7,6 +7,7 @@ const geistSans = localFont({
   variable: "--font-geist-sans",
   weight: "100 900",
 });
+
 const geistMono = localFont({
   src: "./fonts/GeistMonoVF.woff",
   variable: "--font-geist-mono",
@@ -14,20 +15,18 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Piano training",
-  description: "Piano training",
+  title: "Piano Training - Tracker MIDI",
+  description: "Tracker MIDI para entrenamiento de piano",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+    <html lang="es">
+      <body className={`${geistSans.variable} ${geistMono.variable} font-sans`}>
         {children}
       </body>
     </html>
