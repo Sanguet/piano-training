@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
-// @ts-ignore
+import React, { useEffect, useRef, useState, useCallback } from "react";
+// @ts-expect-error - VexFlow types are not available, but the library is functional
 import { Vex } from "vexflow";
 
 interface OpenSheetMusicDisplayProps {
@@ -14,6 +14,43 @@ const OpenSheetMusicDisplay: React.FC<OpenSheetMusicDisplayProps> = ({
   const divRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const processNotes = useCallback(
+    (measure: Element, voice: string, clef: "treble" | "bass") => {
+      return Array.from(measure.getElementsByTagName("note"))
+        .filter((note) => note.querySelector(`voice`)?.textContent === voice)
+        .map((noteElement) => {
+          const isRest = noteElement.querySelector("rest") !== null;
+          const duration = noteElement.querySelector("type")?.textContent;
+
+          if (isRest) {
+            const vexDuration = getDuration(duration || "");
+            return new Vex.Flow.StaveNote({
+              clef,
+              keys: [clef === "treble" ? "b/4" : "d/3"],
+              duration: vexDuration + "r",
+            });
+          }
+
+          const step = noteElement.querySelector("step")?.textContent;
+          const octave = noteElement.querySelector("octave")?.textContent;
+
+          if (!step || !octave || !duration) {
+            console.warn(`Nota incompleta encontrada, saltando...`);
+            return null;
+          }
+
+          const vexDuration = getDuration(duration);
+
+          return new Vex.Flow.StaveNote({
+            clef,
+            keys: [`${step.toLowerCase()}/${octave}`],
+            duration: vexDuration,
+          });
+        })
+        .filter((note): note is Vex.Flow.StaveNote => note !== null);
+    },
+    []
+  );
   useEffect(() => {
     const loadAndRenderScore = async () => {
       if (!divRef.current) {
@@ -61,7 +98,8 @@ const OpenSheetMusicDisplay: React.FC<OpenSheetMusicDisplayProps> = ({
 
         // Obtener la armadura
         const keySignature = xmlDoc.querySelector("key");
-        const fifths = keySignature?.querySelector("fifths")?.textContent || "0";
+        const fifths =
+          keySignature?.querySelector("fifths")?.textContent || "0";
         const keySignatureString = getKeySignature(parseInt(fifths));
 
         for (let i = 0; i < measures.length; i++) {
@@ -124,56 +162,24 @@ const OpenSheetMusicDisplay: React.FC<OpenSheetMusicDisplayProps> = ({
     };
 
     loadAndRenderScore();
-  }, [file]);
-
-  const processNotes = (
-    measure: Element,
-    voice: string,
-    clef: "treble" | "bass"
-  ) => {
-    return Array.from(measure.getElementsByTagName("note"))
-      .filter((note) => note.querySelector(`voice`)?.textContent === voice)
-      .map((noteElement) => {
-        const isRest = noteElement.querySelector("rest") !== null;
-        const duration = noteElement.querySelector("type")?.textContent;
-
-        if (isRest) {
-          let vexDuration = getDuration(duration || "");
-          return new Vex.Flow.StaveNote({
-            clef,
-            keys: [clef === "treble" ? "b/4" : "d/3"],
-            duration: vexDuration + "r",
-          });
-        }
-
-        const step = noteElement.querySelector("step")?.textContent;
-        const octave = noteElement.querySelector("octave")?.textContent;
-
-        if (!step || !octave || !duration) {
-          console.warn(`Nota incompleta encontrada, saltando...`);
-          return null;
-        }
-
-        let vexDuration = getDuration(duration);
-
-        return new Vex.Flow.StaveNote({
-          clef,
-          keys: [`${step.toLowerCase()}/${octave}`],
-          duration: vexDuration,
-        });
-      })
-      .filter((note): note is Vex.Flow.StaveNote => note !== null);
-  };
+  }, [file, processNotes]);
 
   const getDuration = (duration: string): string => {
     switch (duration.toLowerCase()) {
-      case "whole": return "w";
-      case "half": return "h";
-      case "quarter": return "q";
-      case "eighth": return "8";
-      case "16th": return "16";
-      case "32nd": return "32";
-      case "64th": return "64";
+      case "whole":
+        return "w";
+      case "half":
+        return "h";
+      case "quarter":
+        return "q";
+      case "eighth":
+        return "8";
+      case "16th":
+        return "16";
+      case "32nd":
+        return "32";
+      case "64th":
+        return "64";
       default:
         console.warn(`Duración desconocida: ${duration}, usando quarter`);
         return "q";

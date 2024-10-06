@@ -14,7 +14,6 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/app/components/ui/card";
 import {
   Accordion,

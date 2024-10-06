@@ -34,7 +34,7 @@ export const setMasterVolume = (volume: number) => {
 
 export const playNote = (note: number, velocity: number) => {
   if (pianoSampler) {
-    const freq = Tone.Frequency(note, "midi");
+    const freq = Tone.Frequency(note, "midi").toFrequency();
     pianoSampler.triggerAttackRelease(freq, "8n", undefined, velocity);
   }
 };
