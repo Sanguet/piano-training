@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Slider } from "@/app/components/ui/slider";
 import { Button } from "@/app/components/ui/button";
@@ -57,16 +57,7 @@ export default function ScaleDetail({ params }: { params: { name: string } }) {
   const [volume, setVolume] = useState(50);
   const [fileExists, setFileExists] = useState(true);
   const [scaleNotes, setScaleNotes] = useState<string[]>([]);
-
-  const togglePlay = () => {
-    if (isPlaying) {
-      Tone.Transport.stop();
-      Tone.Transport.cancel();
-    } else {
-      playScale();
-    }
-    setIsPlaying(!isPlaying);
-  };
+  const synth = useRef<Tone.Synth | null>(null);
 
   const scaleName = decodeURIComponent(params.name);
   const scaleFileName = getScaleFileName(scaleName);
@@ -110,11 +101,41 @@ export default function ScaleDetail({ params }: { params: { name: string } }) {
 
   const playScale = async () => {
     await Tone.start();
-    const synth = new Tone.Synth().toDestination();
+    if (!synth.current) {
+      synth.current = new Tone.Synth().toDestination();
+    }
+
     const now = Tone.now();
+    const noteDuration = 60 / tempo;
+
+    Tone.Transport.cancel();
+    Tone.Transport.stop();
+
     scaleNotes.forEach((note, index) => {
-      synth.triggerAttackRelease(note, "8n", now + index * 0.5);
+      Tone.Transport.schedule((time) => {
+        synth.current?.triggerAttackRelease(note, "8n", time);
+      }, now + index * noteDuration);
     });
+
+    Tone.Transport.schedule(() => {
+      setIsPlaying(false);
+    }, now + scaleNotes.length * noteDuration);
+
+    Tone.Transport.start();
+  };
+
+  const togglePlay = () => {
+    if (isPlaying) {
+      Tone.Transport.pause();
+      setIsPlaying(false);
+    } else {
+      if (Tone.Transport.state === "started") {
+        Tone.Transport.start();
+      } else {
+        playScale();
+      }
+      setIsPlaying(true);
+    }
   };
 
   return (
