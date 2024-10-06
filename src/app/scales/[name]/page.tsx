@@ -19,6 +19,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import OpenSheetMusicDisplay from "@/app/components/OpenSheetMusicDisplay";
+import * as Tone from "tone";
 
 const getScaleFileName = (name: string): string => {
   const normalizedName = name
@@ -55,11 +56,20 @@ export default function ScaleDetail({ params }: { params: { name: string } }) {
   const [tempo, setTempo] = useState(60);
   const [volume, setVolume] = useState(50);
   const [fileExists, setFileExists] = useState(true);
+  const [scaleNotes, setScaleNotes] = useState<string[]>([]);
 
-  const togglePlay = () => setIsPlaying(!isPlaying);
+  const togglePlay = () => {
+    if (isPlaying) {
+      Tone.Transport.stop();
+      Tone.Transport.cancel();
+    } else {
+      playScale();
+    }
+    setIsPlaying(!isPlaying);
+  };
+
   const scaleName = decodeURIComponent(params.name);
   const scaleFileName = getScaleFileName(scaleName);
-  console.log(scaleFileName);
   const filePath = `/scales/${scaleFileName}_scale.musicxml`;
 
   useEffect(() => {
@@ -70,6 +80,17 @@ export default function ScaleDetail({ params }: { params: { name: string } }) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         setFileExists(true);
+        const xmlContent = await response.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlContent, "text/xml");
+        const notes = Array.from(xmlDoc.getElementsByTagName("note"))
+          .filter((note) => !note.querySelector("rest"))
+          .map((note) => {
+            const step = note.querySelector("step")?.textContent;
+            const octave = note.querySelector("octave")?.textContent;
+            return `${step}${octave}`;
+          });
+        setScaleNotes(notes);
       } catch (error) {
         console.error(`Error loading scale file: ${filePath}`, error);
         setFileExists(false);
@@ -78,6 +99,23 @@ export default function ScaleDetail({ params }: { params: { name: string } }) {
 
     checkFileExists();
   }, [filePath]);
+
+  useEffect(() => {
+    Tone.Transport.bpm.value = tempo;
+  }, [tempo]);
+
+  useEffect(() => {
+    Tone.Destination.volume.value = Tone.gainToDb(volume / 100);
+  }, [volume]);
+
+  const playScale = async () => {
+    await Tone.start();
+    const synth = new Tone.Synth().toDestination();
+    const now = Tone.now();
+    scaleNotes.forEach((note, index) => {
+      synth.triggerAttackRelease(note, "8n", now + index * 0.5);
+    });
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-100">
