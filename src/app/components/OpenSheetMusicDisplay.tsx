@@ -182,11 +182,23 @@ const OpenSheetMusicDisplay: React.FC<OpenSheetMusicDisplayProps> = ({
 
   const getKeySignature = (fifths: number): string => {
     const keySignatures = [
-      "C", "F", "Bb", "Eb", "Ab", "Db", "Gb", "Cb",
-      "G", "D", "A", "E", "B", "F#", "C#"
+      "Cb",
+      "Gb",
+      "Db",
+      "Ab",
+      "Eb",
+      "Bb",
+      "F",
+      "C",
+      "G",
+      "D",
+      "A",
+      "E",
+      "B",
+      "F#",
+      "C#",
     ];
-    const index = fifths + 7;
-    return keySignatures[index] || "C";
+    return keySignatures[fifths + 7] || "C";
   };
 
   return (
