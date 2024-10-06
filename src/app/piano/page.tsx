@@ -10,21 +10,17 @@ import NoteLog from "../components/NoteLog";
 import { Button } from "../components/ui/button";
 import {
   loadPianoSample,
-  playNote,
   setMasterVolume,
   initializeAudio,
 } from "../utils/audio";
 
 const PianoPage: React.FC = () => {
   const [activeNotes, setActiveNotes] = useState<number[]>([]);
-  const [midiAccess, setMidiAccess] = useState<WebMidi.MIDIAccess | null>(null);
   const [volume, setVolume] = useState<number>(0.5);
   const [audioInitialized, setAudioInitialized] = useState<boolean>(false);
-  const [noteLog, setNoteLog] = useState<string[]>([]);
+  const [noteLog, setNoteLog] = useState<string[]>([]); // Reintroducimos noteLog
   const initializingRef = useRef<boolean>(false);
   const audioInitializedRef = useRef<boolean>(false);
-  const activeNotesRef = useRef<Set<number>>(new Set());
-  const lastNoteTimeRef = useRef<{ [key: number]: number }>({});
 
   const initAudio = useCallback(async () => {
     if (!audioInitializedRef.current && !initializingRef.current) {
@@ -52,84 +48,26 @@ const PianoPage: React.FC = () => {
   }, [volume]);
 
   useEffect(() => {
-    const setup = async () => {
-      await initAudio();
-      const requestMIDIAccess = async () => {
-        try {
-          const access = await navigator.requestMIDIAccess();
-          setMidiAccess(access);
-          setupMIDIListeners(access);
-        } catch (error) {
-          console.error("No se pudo acceder al MIDI:", error);
-        }
-      };
-      requestMIDIAccess();
-    };
-    setup();
-  }, [initAudio]);
-
-  useEffect(() => {
-    if (audioInitialized) {
-      setMasterVolume(volume);
-    }
-  }, [volume, audioInitialized]);
-
-  const setupMIDIListeners = (midiAccess: WebMidi.MIDIAccess) => {
-    midiAccess.inputs.forEach((input) => {
-      input.onmidimessage = handleMIDIMessage;
-    });
-  };
-
-  const handleMIDIMessage = useCallback((message: WebMidi.MIDIMessageEvent) => {
-    const [status, note, velocity] = message.data;
-    const now = performance.now();
-    if (status === 144 && velocity > 0) {
-      // Nota presionada
-      if (
-        !activeNotesRef.current.has(note) &&
-        now - (lastNoteTimeRef.current[note] || 0) > 50
-      ) {
-        handleNoteOn(note, velocity / 127);
-        lastNoteTimeRef.current[note] = now;
+    const initializeMIDI = async () => {
+      try {
+        await navigator.requestMIDIAccess();
+        // Removed unused midiInputs setup
+      } catch (err) {
+        console.error("No se pudo acceder al MIDI:", err);
       }
-    } else if (status === 128 || (status === 144 && velocity === 0)) {
-      // Nota liberada
-      handleNoteOff(note);
-    }
+    };
+
+    initializeMIDI();
   }, []);
 
-  const handleNoteOn = useCallback(
-    async (note: number, velocity: number = 1) => {
-      if (!audioInitializedRef.current) {
-        await initAudio();
-      }
-      if (!activeNotesRef.current.has(note)) {
-        activeNotesRef.current.add(note);
-        setActiveNotes(Array.from(activeNotesRef.current));
-        logNoteEvent([note]);
-        try {
-          playNote(note, velocity * volume);
-        } catch (error) {
-          console.error("Error playing note:", error);
-        }
-      }
-    },
-    [volume, initAudio]
-  );
+  const handleNoteOn = useCallback((note: number) => {
+    setActiveNotes((prev) => [...prev, note]);
+    setNoteLog((prev) => [`Nota ${note} presionada`, ...prev.slice(0, 9)]); // Actualizamos noteLog
+  }, []);
 
   const handleNoteOff = useCallback((note: number) => {
-    activeNotesRef.current.delete(note);
-    setActiveNotes(Array.from(activeNotesRef.current));
-  }, []);
-
-  const logNoteEvent = useCallback((notes: number[]) => {
-    const noteNames = notes.map((note) => {
-      const noteName = Tone.Frequency(note, "midi").toNote();
-      return noteName;
-    });
-    const eventType = notes.length > 1 ? "Acorde" : "Nota individual";
-    const logEntry = `${eventType}: ${noteNames.join(", ")}`;
-    setNoteLog((prev) => [logEntry, ...prev].slice(0, 10));
+    setActiveNotes((prev) => prev.filter((n) => n !== note));
+    setNoteLog((prev) => [`Nota ${note} liberada`, ...prev.slice(0, 9)]); // Actualizamos noteLog
   }, []);
 
   const handleVolumeChange = useCallback((newVolume: number) => {

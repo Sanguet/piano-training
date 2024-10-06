@@ -2,14 +2,11 @@
 const nextConfig = {
   reactStrictMode: true,
   webpack: (config) => {
-    config.resolve.fallback = { fs: false, path: false };
+    config.module.rules.push({
+      test: /\.(ico|png|jpg|jpeg|gif|svg)$/,
+      type: "asset/resource",
+    });
     return config;
-  },
-  compiler: {
-    // Enables the styled-components SWC transform
-    styledComponents: true,
-    // Add downlevelIteration option
-    downlevelIteration: true,
   },
 };
 

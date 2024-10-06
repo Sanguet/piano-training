@@ -10,13 +10,16 @@
   },
   "dependencies": {
     "@types/webmidi": "^2.1.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.447.0",
     "next": "14.2.14",
     "opensheetmusicdisplay": "^1.8.9",
     "react": "^18",
     "react-dom": "^18",
     "tone": "^15.0.4",
-    "webmidi": "^3.1.11"
+    "vexflow": "^4.2.5",
+    "webmidi": "^3.1.11",
+    "xml2js": "^0.6.2"
   },
   "devDependencies": {
     "@types/node": "^20",

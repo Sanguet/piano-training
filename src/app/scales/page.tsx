@@ -1,35 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import Link from "next/link";
 import { Music, BookOpen } from "lucide-react";
 import OpenSheetMusicDisplay from "../components/OpenSheetMusicDisplay";
 
 const ScalesPage: React.FC = () => {
-  const [mxlData, setMxlData] = useState<ArrayBuffer | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const loadMXL = async () => {
-      try {
-        const response = await fetch("/scales/c_major_scale.mxl");
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const arrayBuffer = await response.arrayBuffer();
-        setMxlData(arrayBuffer);
-        setLoadError(null);
-      } catch (error) {
-        console.error("Error loading MXL file:", error);
-        setLoadError(
-          "Error al cargar el archivo MXL. Por favor, verifica que el archivo existe y es accesible."
-        );
-      }
-    };
-
-    loadMXL();
-  }, []);
-
   return (
     <div className="flex flex-col min-h-screen bg-gray-100">
       <header className="bg-white shadow-sm">
@@ -64,21 +40,27 @@ const ScalesPage: React.FC = () => {
           </ul>
         </div>
 
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <div className="flex items-center mb-4">
             <BookOpen className="w-6 h-6 text-blue-500 mr-2" />
             <h2 className="text-2xl font-semibold">Escala de Do Mayor</h2>
           </div>
-          {loadError ? (
-            <p className="text-red-500">{loadError}</p>
-          ) : mxlData ? (
-            <OpenSheetMusicDisplay file={mxlData} />
-          ) : (
-            <p>Cargando partitura...</p>
-          )}
+          <OpenSheetMusicDisplay file="/scales/c_major_scale.xml" />
           <p className="mt-4">
             Practica esta escala ascendente y descendente. Asegúrate de mantener
             una digitación consistente y un tempo estable.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="flex items-center mb-4">
+            <BookOpen className="w-6 h-6 text-blue-500 mr-2" />
+            <h2 className="text-2xl font-semibold">Escala de Sol Mayor</h2>
+          </div>
+          <OpenSheetMusicDisplay file="/scales/g_major_scale.musicxml" />
+          <p className="mt-4">
+            Esta escala tiene un sostenido (F♯). Practica la transición suave
+            entre F♯ y G, manteniendo un ritmo constante.
           </p>
         </div>
       </main>

@@ -1,25 +1,17 @@
-import React from "react";
-import Image from "next/image";
+"use client";
 
-const HappyBirthday: React.FC = () => {
+import React from "react";
+import OpenSheetMusicDisplay from "../../components/OpenSheetMusicDisplay";
+
+const HappyBirthdayPage: React.FC = () => {
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-4xl font-bold mb-6">Happy Birthday</h1>
-      <div className="bg-white p-4 rounded-lg shadow-md">
-        <Image
-          src="/images/happy-birthday-score.png"
-          alt="Partitura de Happy Birthday"
-          width={800}
-          height={600}
-          layout="responsive"
-        />
-      </div>
-      <p className="mt-4">
-        Esta es la partitura de "Happy Birthday". Practica tocando esta melodía
-        simple pero icónica. Presta atención al ritmo y a las notas repetidas.
-      </p>
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">
+        Partitura de &quot;Happy Birthday&quot;
+      </h1>
+      <OpenSheetMusicDisplay file="/scores/happy_birthday.mxl" />
     </div>
   );
 };
 
-export default HappyBirthday;
+export default HappyBirthdayPage;
