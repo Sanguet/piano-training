@@ -20,6 +20,36 @@ import {
 } from "lucide-react";
 import OpenSheetMusicDisplay from "@/app/components/OpenSheetMusicDisplay";
 
+const getScaleFileName = (name: string): string => {
+  const normalizedName = name
+    .toLowerCase()
+    .replace(/\s+/g, "_")
+    .replace(/♯/g, "sharp")
+    .replace(/♭/g, "flat")
+    .replace("mayor", "major")
+    .replace("menor", "minor");
+
+  // Mapeo específico para algunas escalas
+  const scaleMap: { [key: string]: string } = {
+    do_major: "c_major",
+    re_major: "d_major",
+    mi_major: "e_major",
+    fa_major: "f_major",
+    sol_major: "g_major",
+    la_major: "a_major",
+    si_major: "b_major",
+    la_minor: "a_minor",
+    si_minor: "b_minor",
+    do_minor: "c_minor",
+    re_minor: "d_minor",
+    mi_minor: "e_minor",
+    fa_minor: "f_minor",
+    sol_minor: "g_minor",
+  };
+
+  return scaleMap[normalizedName] || normalizedName;
+};
+
 export default function ScaleDetail({ params }: { params: { name: string } }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [tempo, setTempo] = useState(60);
@@ -28,9 +58,9 @@ export default function ScaleDetail({ params }: { params: { name: string } }) {
 
   const togglePlay = () => setIsPlaying(!isPlaying);
   const scaleName = decodeURIComponent(params.name);
-
-  // Siempre usamos g_major_scale.musicxml para depuración
-  const filePath = `/scales/g_major_scale.musicxml`;
+  const scaleFileName = getScaleFileName(scaleName);
+  console.log(scaleFileName);
+  const filePath = `/scales/${scaleFileName}_scale.musicxml`;
 
   useEffect(() => {
     const checkFileExists = async () => {
@@ -82,14 +112,14 @@ export default function ScaleDetail({ params }: { params: { name: string } }) {
         </Link>
 
         <h1 className="text-4xl font-bold text-center mb-8">
-          Escala: {scaleName} (Mostrando Sol Mayor para depuración)
+          Escala: {scaleName}
         </h1>
 
         <Card className="w-full max-w-4xl mx-auto">
           <CardHeader>
             <CardTitle className="flex items-center text-2xl font-bold">
               <Music className="w-6 h-6 text-blue-500 mr-2" />
-              {scaleName} (Sol Mayor)
+              {scaleName}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
