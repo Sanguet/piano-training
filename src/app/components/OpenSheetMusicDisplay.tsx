@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+// @ts-ignore
 import { Vex } from "vexflow";
-import JSZip from "jszip";
 
 interface OpenSheetMusicDisplayProps {
   file: string;
@@ -16,7 +16,11 @@ const OpenSheetMusicDisplay: React.FC<OpenSheetMusicDisplayProps> = ({
 
   useEffect(() => {
     const loadAndRenderScore = async () => {
-      if (!divRef.current) return;
+      if (!divRef.current) {
+        console.log("divRef.current is null, retrying in 100ms");
+        setTimeout(loadAndRenderScore, 100);
+        return;
+      }
 
       try {
         console.log(`Loading file: ${file}`);
@@ -25,30 +29,7 @@ const OpenSheetMusicDisplay: React.FC<OpenSheetMusicDisplayProps> = ({
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        let xmlContent: string;
-
-        if (file.endsWith(".mxl")) {
-          console.log("Processing MXL file");
-          const arrayBuffer = await response.arrayBuffer();
-          const zip = new JSZip();
-          const contents = await zip.loadAsync(arrayBuffer);
-          const musicXMLFile = Object.keys(contents.files).find(
-            (filename) =>
-              filename.endsWith(".xml") || filename.endsWith(".musicxml")
-          );
-
-          if (!musicXMLFile) {
-            throw new Error(
-              "No se encontró un archivo MusicXML en el archivo MXL."
-            );
-          }
-
-          xmlContent = await contents.file(musicXMLFile)!.async("string");
-        } else {
-          console.log("Processing XML/MusicXML file");
-          xmlContent = await response.text();
-        }
-
+        const xmlContent = await response.text();
         console.log("XML Content:", xmlContent.substring(0, 100) + "...");
 
         const parser = new DOMParser();
@@ -63,38 +44,76 @@ const OpenSheetMusicDisplay: React.FC<OpenSheetMusicDisplayProps> = ({
           divRef.current,
           Vex.Flow.Renderer.Backends.SVG
         );
-        renderer.resize(500, 200);
+        renderer.resize(800, 600);
         const context = renderer.getContext();
 
-        const stave = new Vex.Flow.Stave(10, 40, 400);
-        stave.addClef("treble").addTimeSignature("4/4");
-        stave.setContext(context).draw();
+        const measures = xmlDoc.getElementsByTagName("measure");
+        const staveWidth = 200;
+        let currentX = 10;
+        let currentY = 40;
+        let isNewLine = true;
 
-        const notes = Array.from(xmlDoc.getElementsByTagName("note")).map(
-          (noteElement) => {
-            const step =
-              noteElement.getElementsByTagName("step")[0]?.textContent;
-            const octave =
-              noteElement.getElementsByTagName("octave")[0]?.textContent;
-            const duration =
-              noteElement.getElementsByTagName("type")[0]?.textContent;
+        const timeSignature = xmlDoc.querySelector("time");
+        const beats = timeSignature?.querySelector("beats")?.textContent || "4";
+        const beatType =
+          timeSignature?.querySelector("beat-type")?.textContent || "4";
+        const timeSignatureString = `${beats}/${beatType}`;
 
-            console.log(`Note: ${step}${octave}, Duration: ${duration}`);
+        // Obtener la armadura
+        const keySignature = xmlDoc.querySelector("key");
+        const fifths = keySignature?.querySelector("fifths")?.textContent || "0";
+        const keySignatureString = getKeySignature(parseInt(fifths));
 
-            return new Vex.Flow.StaveNote({
-              clef: "treble",
-              keys: [`${step}/${octave}`],
-              duration: duration === "quarter" ? "q" : "w",
-            });
+        for (let i = 0; i < measures.length; i++) {
+          const measure = measures[i];
+
+          // Crear pentagrama superior (clave de Sol)
+          const staveUpper = new Vex.Flow.Stave(currentX, currentY, staveWidth);
+          if (isNewLine) {
+            staveUpper.addClef("treble");
+            staveUpper.addKeySignature(keySignatureString);
+            staveUpper.setMeasure(i + 1);
           }
-        );
+          if (i === 0) {
+            staveUpper.addTimeSignature(timeSignatureString);
+          }
+          staveUpper.setContext(context).draw();
 
-        console.log(`Number of notes: ${notes.length}`);
+          // Crear pentagrama inferior (clave de Fa)
+          const staveLower = new Vex.Flow.Stave(
+            currentX,
+            currentY + 100,
+            staveWidth
+          );
+          if (isNewLine) {
+            staveLower.addClef("bass");
+            staveLower.addKeySignature(keySignatureString);
+          }
+          if (i === 0) {
+            staveLower.addTimeSignature(timeSignatureString);
+          }
+          staveLower.setContext(context).draw();
 
-        if (notes.length > 0) {
-          Vex.Flow.Formatter.FormatAndDraw(context, stave, notes);
-        } else {
-          throw new Error("No se encontraron notas en el archivo MusicXML.");
+          // Procesar notas para el pentagrama superior
+          const notesUpper = processNotes(measure, "1", "treble");
+          if (notesUpper.length > 0) {
+            Vex.Flow.Formatter.FormatAndDraw(context, staveUpper, notesUpper);
+          }
+
+          // Procesar notas para el pentagrama inferior
+          const notesLower = processNotes(measure, "5", "bass");
+          if (notesLower.length > 0) {
+            Vex.Flow.Formatter.FormatAndDraw(context, staveLower, notesLower);
+          }
+
+          currentX += staveWidth;
+          if (currentX > 700) {
+            currentX = 10;
+            currentY += 200;
+            isNewLine = true;
+          } else {
+            isNewLine = false;
+          }
         }
 
         setError(null);
@@ -107,11 +126,75 @@ const OpenSheetMusicDisplay: React.FC<OpenSheetMusicDisplayProps> = ({
     loadAndRenderScore();
   }, [file]);
 
-  if (error) {
-    return <div className="text-red-500">{error}</div>;
-  }
+  const processNotes = (
+    measure: Element,
+    voice: string,
+    clef: "treble" | "bass"
+  ) => {
+    return Array.from(measure.getElementsByTagName("note"))
+      .filter((note) => note.querySelector(`voice`)?.textContent === voice)
+      .map((noteElement) => {
+        const isRest = noteElement.querySelector("rest") !== null;
+        const duration = noteElement.querySelector("type")?.textContent;
 
-  return <div ref={divRef} />;
+        if (isRest) {
+          let vexDuration = getDuration(duration || "");
+          return new Vex.Flow.StaveNote({
+            clef,
+            keys: [clef === "treble" ? "b/4" : "d/3"],
+            duration: vexDuration + "r",
+          });
+        }
+
+        const step = noteElement.querySelector("step")?.textContent;
+        const octave = noteElement.querySelector("octave")?.textContent;
+
+        if (!step || !octave || !duration) {
+          console.warn(`Nota incompleta encontrada, saltando...`);
+          return null;
+        }
+
+        let vexDuration = getDuration(duration);
+
+        return new Vex.Flow.StaveNote({
+          clef,
+          keys: [`${step.toLowerCase()}/${octave}`],
+          duration: vexDuration,
+        });
+      })
+      .filter((note): note is Vex.Flow.StaveNote => note !== null);
+  };
+
+  const getDuration = (duration: string): string => {
+    switch (duration.toLowerCase()) {
+      case "whole": return "w";
+      case "half": return "h";
+      case "quarter": return "q";
+      case "eighth": return "8";
+      case "16th": return "16";
+      case "32nd": return "32";
+      case "64th": return "64";
+      default:
+        console.warn(`Duración desconocida: ${duration}, usando quarter`);
+        return "q";
+    }
+  };
+
+  const getKeySignature = (fifths: number): string => {
+    const keySignatures = [
+      "C", "F", "Bb", "Eb", "Ab", "Db", "Gb", "Cb",
+      "G", "D", "A", "E", "B", "F#", "C#"
+    ];
+    const index = fifths + 7;
+    return keySignatures[index] || "C";
+  };
+
+  return (
+    <div>
+      {error && <div className="text-red-500">{error}</div>}
+      <div ref={divRef} />
+    </div>
+  );
 };
 
 export default OpenSheetMusicDisplay;

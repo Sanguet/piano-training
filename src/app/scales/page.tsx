@@ -45,7 +45,7 @@ const ScalesPage: React.FC = () => {
             <BookOpen className="w-6 h-6 text-blue-500 mr-2" />
             <h2 className="text-2xl font-semibold">Escala de Do Mayor</h2>
           </div>
-          <OpenSheetMusicDisplay file="/scales/c_major_scale.xml" />
+          <OpenSheetMusicDisplay file="/scales/c_major_scale.musicxml" />
           <p className="mt-4">
             Practica esta escala ascendente y descendente. Asegúrate de mantener
             una digitación consistente y un tempo estable.
