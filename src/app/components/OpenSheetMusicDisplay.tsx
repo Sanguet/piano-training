@@ -1,8 +1,11 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useCallback } from "react";
-// @ts-expect-error - VexFlow types are not available, but the library is functional
-import { Vex } from "vexflow";
+import React, { useEffect, useRef, useState } from "react";
+import { OpenSheetMusicDisplay as OSMD } from "opensheetmusicdisplay";
+import { Button } from "@/app/components/ui/button";
+import { PlayCircle, PauseCircle, StopCircle } from "lucide-react";
+import * as Tone from "tone";
+import { Slider } from "@/app/components/ui/slider";
 
 interface OpenSheetMusicDisplayProps {
   file: string;
@@ -12,205 +15,134 @@ const OpenSheetMusicDisplay: React.FC<OpenSheetMusicDisplayProps> = ({
   file,
 }) => {
   const divRef = useRef<HTMLDivElement>(null);
-  const [error, setError] = useState<string | null>(null);
+  const osmdRef = useRef<OSMD | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const synth = useRef<Tone.PolySynth | null>(null);
+  const [tempo, setTempo] = useState(120);
+  const [volume, setVolume] = useState(75);
 
-  const processNotes = useCallback(
-    (measure: Element, voice: string, clef: "treble" | "bass") => {
-      return Array.from(measure.getElementsByTagName("note"))
-        .filter((note) => note.querySelector(`voice`)?.textContent === voice)
-        .map((noteElement) => {
-          const isRest = noteElement.querySelector("rest") !== null;
-          const duration = noteElement.querySelector("type")?.textContent;
-
-          if (isRest) {
-            const vexDuration = getDuration(duration || "");
-            return new Vex.Flow.StaveNote({
-              clef,
-              keys: [clef === "treble" ? "b/4" : "d/3"],
-              duration: vexDuration + "r",
-            });
-          }
-
-          const step = noteElement.querySelector("step")?.textContent;
-          const octave = noteElement.querySelector("octave")?.textContent;
-
-          if (!step || !octave || !duration) {
-            console.warn(`Nota incompleta encontrada, saltando...`);
-            return null;
-          }
-
-          const vexDuration = getDuration(duration);
-
-          return new Vex.Flow.StaveNote({
-            clef,
-            keys: [`${step.toLowerCase()}/${octave}`],
-            duration: vexDuration,
-          });
-        })
-        .filter((note): note is Vex.Flow.StaveNote => note !== null);
-    },
-    []
-  );
   useEffect(() => {
-    const loadAndRenderScore = async () => {
-      if (!divRef.current) {
-        console.log("divRef.current is null, retrying in 100ms");
-        setTimeout(loadAndRenderScore, 100);
-        return;
-      }
+    if (divRef.current) {
+      osmdRef.current = new OSMD(divRef.current, {
+        autoResize: true,
+        drawTitle: true,
+        drawSubtitle: true,
+        drawComposer: true,
+        drawLyricist: true,
+      });
 
-      try {
-        console.log(`Loading file: ${file}`);
-        const response = await fetch(file);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+      const loadAndRenderScore = async () => {
+        try {
+          await osmdRef.current?.load(file);
+          osmdRef.current?.render();
+        } catch (error) {
+          console.error("Error loading or rendering score:", error);
         }
+      };
 
-        const xmlContent = await response.text();
-        console.log("XML Content:", xmlContent.substring(0, 100) + "...");
+      loadAndRenderScore();
+      synth.current = new Tone.PolySynth().toDestination();
+    }
 
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(xmlContent, "text/xml");
-
-        // Limpiar el div antes de renderizar
-        while (divRef.current.firstChild) {
-          divRef.current.removeChild(divRef.current.firstChild);
-        }
-
-        const renderer = new Vex.Flow.Renderer(
-          divRef.current,
-          Vex.Flow.Renderer.Backends.SVG
-        );
-        renderer.resize(800, 600);
-        const context = renderer.getContext();
-
-        const measures = xmlDoc.getElementsByTagName("measure");
-        const staveWidth = 200;
-        let currentX = 10;
-        let currentY = 40;
-        let isNewLine = true;
-
-        const timeSignature = xmlDoc.querySelector("time");
-        const beats = timeSignature?.querySelector("beats")?.textContent || "4";
-        const beatType =
-          timeSignature?.querySelector("beat-type")?.textContent || "4";
-        const timeSignatureString = `${beats}/${beatType}`;
-
-        // Obtener la armadura
-        const keySignature = xmlDoc.querySelector("key");
-        const fifths =
-          keySignature?.querySelector("fifths")?.textContent || "0";
-        const keySignatureString = getKeySignature(parseInt(fifths));
-
-        for (let i = 0; i < measures.length; i++) {
-          const measure = measures[i];
-
-          // Crear pentagrama superior (clave de Sol)
-          const staveUpper = new Vex.Flow.Stave(currentX, currentY, staveWidth);
-          if (isNewLine) {
-            staveUpper.addClef("treble");
-            staveUpper.addKeySignature(keySignatureString);
-            staveUpper.setMeasure(i + 1);
-          }
-          if (i === 0) {
-            staveUpper.addTimeSignature(timeSignatureString);
-          }
-          staveUpper.setContext(context).draw();
-
-          // Crear pentagrama inferior (clave de Fa)
-          const staveLower = new Vex.Flow.Stave(
-            currentX,
-            currentY + 100,
-            staveWidth
-          );
-          if (isNewLine) {
-            staveLower.addClef("bass");
-            staveLower.addKeySignature(keySignatureString);
-          }
-          if (i === 0) {
-            staveLower.addTimeSignature(timeSignatureString);
-          }
-          staveLower.setContext(context).draw();
-
-          // Procesar notas para el pentagrama superior
-          const notesUpper = processNotes(measure, "1", "treble");
-          if (notesUpper.length > 0) {
-            Vex.Flow.Formatter.FormatAndDraw(context, staveUpper, notesUpper);
-          }
-
-          // Procesar notas para el pentagrama inferior
-          const notesLower = processNotes(measure, "5", "bass");
-          if (notesLower.length > 0) {
-            Vex.Flow.Formatter.FormatAndDraw(context, staveLower, notesLower);
-          }
-
-          currentX += staveWidth;
-          if (currentX > 700) {
-            currentX = 10;
-            currentY += 200;
-            isNewLine = true;
-          } else {
-            isNewLine = false;
-          }
-        }
-
-        setError(null);
-      } catch (error) {
-        console.error("Error rendering score:", error);
-        setError(`Error al renderizar la partitura: ${error}`);
-      }
+    return () => {
+      osmdRef.current?.clear();
+      synth.current?.dispose();
     };
+  }, [file]);
 
-    loadAndRenderScore();
-  }, [file, processNotes]);
+  useEffect(() => {
+    if (synth.current) {
+      synth.current.volume.value = Tone.gainToDb(volume / 100);
+    }
+  }, [volume]);
 
-  const getDuration = (duration: string): string => {
-    switch (duration.toLowerCase()) {
-      case "whole":
-        return "w";
-      case "half":
-        return "h";
-      case "quarter":
-        return "q";
-      case "eighth":
-        return "8";
-      case "16th":
-        return "16";
-      case "32nd":
-        return "32";
-      case "64th":
-        return "64";
-      default:
-        console.warn(`Duración desconocida: ${duration}, usando quarter`);
-        return "q";
+  const playNote = (frequency: number, duration: number) => {
+    if (synth.current) {
+      synth.current.triggerAttackRelease(frequency, duration);
     }
   };
 
-  const getKeySignature = (fifths: number): string => {
-    const keySignatures = [
-      "Cb",
-      "Gb",
-      "Db",
-      "Ab",
-      "Eb",
-      "Bb",
-      "F",
-      "C",
-      "G",
-      "D",
-      "A",
-      "E",
-      "B",
-      "F#",
-      "C#",
-    ];
-    return keySignatures[fifths + 7] || "C";
+  const handlePlay = async () => {
+    if (osmdRef.current) {
+      await Tone.start();
+      osmdRef.current.cursor.show();
+      osmdRef.current.cursor.reset();
+      setIsPlaying(true);
+
+      const playbackLoop = () => {
+        if (isPlaying && osmdRef.current) {
+          if (osmdRef.current.cursor.iterator.EndReached) {
+            handleStop();
+          } else {
+            const currentNotes = osmdRef.current.cursor.NotesUnderCursor();
+            currentNotes.forEach((note) => {
+              const pitch = note.halfTone ? note.halfTone + 12 : undefined;
+              if (pitch !== undefined) {
+                const frequency = Tone.Frequency(pitch, "midi").toFrequency();
+                playNote(frequency, 60 / tempo);
+              }
+            });
+            osmdRef.current.cursor.next();
+            setTimeout(playbackLoop, (60 / tempo) * 1000);
+          }
+        }
+      };
+
+      playbackLoop();
+    }
+  };
+
+  const handlePause = () => {
+    setIsPlaying(false);
+  };
+
+  const handleStop = () => {
+    setIsPlaying(false);
+    if (osmdRef.current) {
+      osmdRef.current.cursor.reset();
+      osmdRef.current.cursor.hide();
+    }
+    synth.current?.releaseAll();
   };
 
   return (
     <div>
-      {error && <div className="text-red-500">{error}</div>}
       <div ref={divRef} />
+      <div className="flex flex-col items-center space-y-4 mt-4">
+        <div className="flex justify-center space-x-4">
+          <Button onClick={handlePlay} disabled={isPlaying}>
+            <PlayCircle className="mr-2 h-4 w-4" /> Play
+          </Button>
+          <Button onClick={handlePause} disabled={!isPlaying}>
+            <PauseCircle className="mr-2 h-4 w-4" /> Pause
+          </Button>
+          <Button onClick={handleStop}>
+            <StopCircle className="mr-2 h-4 w-4" /> Stop
+          </Button>
+        </div>
+        <div className="flex items-center space-x-4 w-full max-w-md">
+          <span>Tempo: {tempo} BPM</span>
+          <Slider
+            value={[tempo]}
+            onValueChange={(value) => setTempo(value[0])}
+            min={40}
+            max={240}
+            step={1}
+            className="w-[200px]"
+          />
+        </div>
+        <div className="flex items-center space-x-4 w-full max-w-md">
+          <span>Volumen: {volume}%</span>
+          <Slider
+            value={[volume]}
+            onValueChange={(value) => setVolume(value[0])}
+            min={0}
+            max={100}
+            step={1}
+            className="w-[200px]"
+          />
+        </div>
+      </div>
     </div>
   );
 };

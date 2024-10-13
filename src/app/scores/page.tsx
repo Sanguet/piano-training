@@ -2,8 +2,7 @@
 
 import React, { useState, useCallback } from "react";
 import Link from "next/link";
-import { FileMusic, Upload, AlertTriangle } from "lucide-react";
-import { Button } from "@/app/components/ui/button";
+import { FileMusic, Upload } from "lucide-react";
 import { Input } from "@/app/components/ui/input";
 import {
   Card,
@@ -11,17 +10,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
-import { Slider } from "@/app/components/ui/slider";
 import OpenSheetMusicDisplay from "@/app/components/OpenSheetMusicDisplay";
 import ScoreCard from "@/app/components/ScoreCard";
-import * as Tone from "tone";
 
 const Scores: React.FC = () => {
   const [uploadedScore, setUploadedScore] = useState<File | null>(null);
   const [scoreUrl, setScoreUrl] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [tempo, setTempo] = useState(120);
-  const [volume, setVolume] = useState(75);
 
   const handleFileUpload = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -36,18 +30,6 @@ const Scores: React.FC = () => {
     },
     []
   );
-
-  const togglePlay = useCallback(() => {
-    if (isPlaying) {
-      Tone.Transport.stop();
-      setIsPlaying(false);
-    } else {
-      // Aquí iría la lógica para reproducir la partitura
-      // Esto es un placeholder y necesitaría ser implementado
-      Tone.Transport.start();
-      setIsPlaying(true);
-    }
-  }, [isPlaying]);
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-100">
@@ -92,33 +74,6 @@ const Scores: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <OpenSheetMusicDisplay file={scoreUrl} />
-                <div className="flex items-center justify-between mt-4">
-                  <Button onClick={togglePlay}>
-                    {isPlaying ? "Pausar" : "Reproducir"}
-                  </Button>
-                  <div className="flex items-center space-x-4">
-                    <span>Tempo: {tempo} BPM</span>
-                    <Slider
-                      value={[tempo]}
-                      onValueChange={(value) => setTempo(value[0])}
-                      min={40}
-                      max={240}
-                      step={1}
-                      className="w-[200px]"
-                    />
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <span>Volumen: {volume}%</span>
-                    <Slider
-                      value={[volume]}
-                      onValueChange={(value) => setVolume(value[0])}
-                      min={0}
-                      max={100}
-                      step={1}
-                      className="w-[200px]"
-                    />
-                  </div>
-                </div>
               </CardContent>
             </Card>
           )}
