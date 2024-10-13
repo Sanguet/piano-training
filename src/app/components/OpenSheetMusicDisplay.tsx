@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { OpenSheetMusicDisplay as OSMD } from "opensheetmusicdisplay";
 import { Button } from "@/app/components/ui/button";
 import { PlayCircle, PauseCircle, StopCircle } from "lucide-react";
@@ -20,6 +20,7 @@ const OpenSheetMusicDisplay: React.FC<OpenSheetMusicDisplayProps> = ({
   const synth = useRef<Tone.PolySynth | null>(null);
   const [tempo, setTempo] = useState(120);
   const [volume, setVolume] = useState(75);
+  const [audioContextStarted, setAudioContextStarted] = useState(false);
 
   useEffect(() => {
     if (divRef.current) {
@@ -35,13 +36,13 @@ const OpenSheetMusicDisplay: React.FC<OpenSheetMusicDisplayProps> = ({
         try {
           await osmdRef.current?.load(file);
           osmdRef.current?.render();
+          console.log("Score loaded and rendered successfully");
         } catch (error) {
           console.error("Error loading or rendering score:", error);
         }
       };
 
       loadAndRenderScore();
-      synth.current = new Tone.PolySynth().toDestination();
     }
 
     return () => {
@@ -56,32 +57,53 @@ const OpenSheetMusicDisplay: React.FC<OpenSheetMusicDisplayProps> = ({
     }
   }, [volume]);
 
-  const playNote = (frequency: number, duration: number) => {
-    if (synth.current) {
-      synth.current.triggerAttackRelease(frequency, duration);
+  const initAudio = async () => {
+    if (!audioContextStarted) {
+      await Tone.start();
+      synth.current = new Tone.PolySynth(Tone.Synth).toDestination();
+      setAudioContextStarted(true);
+      console.log("Audio context started and synth created");
     }
   };
 
-  const handlePlay = async () => {
-    if (osmdRef.current) {
-      await Tone.start();
+  const playNotes = useCallback((notes: any[], duration: number) => {
+    if (synth.current) {
+      const notesToPlay = notes.map((note) => {
+        const pitch = Tone.Frequency(note.halfTone + 12, "midi").toNote();
+        return pitch;
+      });
+      console.log(
+        `Playing notes: ${notesToPlay.join(", ")}, duration: ${duration}`
+      );
+      synth.current.triggerAttackRelease(notesToPlay, duration);
+    } else {
+      console.error("Synth is not initialized");
+    }
+  }, []);
+
+  const handlePlay = useCallback(async () => {
+    console.log("Play button clicked");
+    await initAudio();
+    if (osmdRef.current && !isPlaying) {
+      setIsPlaying(true);
       osmdRef.current.cursor.show();
       osmdRef.current.cursor.reset();
-      setIsPlaying(true);
 
+      console.log("Starting playback loop");
       const playbackLoop = () => {
-        if (isPlaying && osmdRef.current) {
-          if (osmdRef.current.cursor.iterator.EndReached) {
+        if (osmdRef.current && isPlaying) {
+          const iterator = osmdRef.current.cursor.iterator;
+          if (iterator.EndReached) {
+            console.log("End of score reached");
             handleStop();
           } else {
             const currentNotes = osmdRef.current.cursor.NotesUnderCursor();
-            currentNotes.forEach((note) => {
-              const pitch = note.halfTone ? note.halfTone + 12 : undefined;
-              if (pitch !== undefined) {
-                const frequency = Tone.Frequency(pitch, "midi").toFrequency();
-                playNote(frequency, 60 / tempo);
-              }
-            });
+            console.log("Current notes:", currentNotes);
+            if (currentNotes.length > 0) {
+              const duration =
+                (60 / tempo) * (currentNotes[0].Length.RealValue / 4);
+              playNotes(currentNotes, duration);
+            }
             osmdRef.current.cursor.next();
             setTimeout(playbackLoop, (60 / tempo) * 1000);
           }
@@ -89,21 +111,27 @@ const OpenSheetMusicDisplay: React.FC<OpenSheetMusicDisplayProps> = ({
       };
 
       playbackLoop();
+    } else {
+      console.log(
+        "Cannot start playback: OSMD not initialized or already playing"
+      );
     }
-  };
+  }, [isPlaying, tempo, playNotes]);
 
-  const handlePause = () => {
+  const handlePause = useCallback(() => {
+    console.log("Pause button clicked");
     setIsPlaying(false);
-  };
+  }, []);
 
-  const handleStop = () => {
+  const handleStop = useCallback(() => {
+    console.log("Stop button clicked");
     setIsPlaying(false);
     if (osmdRef.current) {
       osmdRef.current.cursor.reset();
       osmdRef.current.cursor.hide();
     }
     synth.current?.releaseAll();
-  };
+  }, []);
 
   return (
     <div>

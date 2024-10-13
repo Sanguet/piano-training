@@ -1,25 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Slider } from "@/app/components/ui/slider";
-import { Button } from "@/app/components/ui/button";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
-import {
-  Play,
-  Pause,
-  Volume2,
-  ArrowLeft,
-  Music,
-  AlertTriangle,
-} from "lucide-react";
+import { ArrowLeft, Music, AlertTriangle } from "lucide-react";
 import OpenSheetMusicDisplay from "@/app/components/OpenSheetMusicDisplay";
-import * as Tone from "tone";
 
 const getScaleFileName = (name: string): string => {
   const normalizedName = name
@@ -52,12 +42,7 @@ const getScaleFileName = (name: string): string => {
 };
 
 export default function ScaleDetail({ params }: { params: { name: string } }) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [tempo, setTempo] = useState(60);
-  const [volume, setVolume] = useState(50);
   const [fileExists, setFileExists] = useState(true);
-  const [scaleNotes, setScaleNotes] = useState<string[]>([]);
-  const synth = useRef<Tone.Synth | null>(null);
 
   const scaleName = decodeURIComponent(params.name);
   const scaleFileName = getScaleFileName(scaleName);
@@ -71,17 +56,6 @@ export default function ScaleDetail({ params }: { params: { name: string } }) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         setFileExists(true);
-        const xmlContent = await response.text();
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(xmlContent, "text/xml");
-        const notes = Array.from(xmlDoc.getElementsByTagName("note"))
-          .filter((note) => !note.querySelector("rest"))
-          .map((note) => {
-            const step = note.querySelector("step")?.textContent;
-            const octave = note.querySelector("octave")?.textContent;
-            return `${step}${octave}`;
-          });
-        setScaleNotes(notes);
       } catch (error) {
         console.error(`Error loading scale file: ${filePath}`, error);
         setFileExists(false);
@@ -90,53 +64,6 @@ export default function ScaleDetail({ params }: { params: { name: string } }) {
 
     checkFileExists();
   }, [filePath]);
-
-  useEffect(() => {
-    Tone.Transport.bpm.value = tempo;
-  }, [tempo]);
-
-  useEffect(() => {
-    Tone.Destination.volume.value = Tone.gainToDb(volume / 100);
-  }, [volume]);
-
-  const playScale = async () => {
-    await Tone.start();
-    if (!synth.current) {
-      synth.current = new Tone.Synth().toDestination();
-    }
-
-    const now = Tone.now();
-    const noteDuration = 60 / tempo;
-
-    Tone.Transport.cancel();
-    Tone.Transport.stop();
-
-    scaleNotes.forEach((note, index) => {
-      Tone.Transport.schedule((time) => {
-        synth.current?.triggerAttackRelease(note, "8n", time);
-      }, now + index * noteDuration);
-    });
-
-    Tone.Transport.schedule(() => {
-      setIsPlaying(false);
-    }, now + scaleNotes.length * noteDuration);
-
-    Tone.Transport.start();
-  };
-
-  const togglePlay = () => {
-    if (isPlaying) {
-      Tone.Transport.pause();
-      setIsPlaying(false);
-    } else {
-      if (Tone.Transport.state === "started") {
-        Tone.Transport.start();
-      } else {
-        playScale();
-      }
-      setIsPlaying(true);
-    }
-  };
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-100">
@@ -194,47 +121,6 @@ export default function ScaleDetail({ params }: { params: { name: string } }) {
                 </p>
               </div>
             )}
-
-            <div className="flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0 sm:space-x-4 bg-white p-4 rounded-lg shadow">
-              <Button
-                onClick={togglePlay}
-                className="w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white"
-                disabled={!fileExists}
-              >
-                {isPlaying ? (
-                  <Pause className="mr-2 h-4 w-4" />
-                ) : (
-                  <Play className="mr-2 h-4 w-4" />
-                )}
-                {isPlaying ? "Pausar" : "Reproducir"}
-              </Button>
-
-              <div className="flex items-center space-x-2 w-full sm:w-auto">
-                <span className="text-sm w-24">Tempo: {tempo} BPM</span>
-                <Slider
-                  value={[tempo]}
-                  onValueChange={(value: number[]) => setTempo(value[0])}
-                  max={120}
-                  min={40}
-                  step={1}
-                  className="w-[150px]"
-                  disabled={!fileExists}
-                />
-              </div>
-
-              <div className="flex items-center space-x-2 w-full sm:w-auto">
-                <Volume2 className="h-4 w-4 text-gray-600" />
-                <Slider
-                  value={[volume]}
-                  onValueChange={(value: number[]) => setVolume(value[0])}
-                  max={100}
-                  min={0}
-                  step={1}
-                  className="w-[150px]"
-                  disabled={!fileExists}
-                />
-              </div>
-            </div>
           </CardContent>
         </Card>
       </main>
